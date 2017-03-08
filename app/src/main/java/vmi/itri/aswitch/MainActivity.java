@@ -202,6 +202,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 InputStream in;
                 PrintStream out;
                 StringBuffer cb;
+                StackTraceElement l = new Exception().getStackTrace()[0];
+                TelnetClient tc = new TelnetClient();
                 try {
                     Log.e(TAG,"connectiong to localhost...");
                     tc.connect("localhost");
@@ -213,20 +215,17 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
                         //modify here
                         cb=readUntilPrompt(in);
-                        Log.e(TAG,cb.toString());
-/*                        strExchangeMsg = cb.toString();
-                        Message msg = new Message();
-                        msg.what=step1;
-                        uiMessageHandler.sendMessage(msg);*/
                         doPushStringToUI(cb.toString());
 
-                        out.println("cd /data/maru/con1;./vm-swch.sh");
+                        out.println("/data/maru/host-switch.sh");
                         out.flush();
 
                         cb=readUntilPrompt(in);
                         doPushStringToUI(cb.toString());
 
-                        sleep(5000);
+                        sleep(120*1000);   //120s
+                        tc.disconnect();
+                        doPushStringToUI( l.getClassName()+"/"+l.getMethodName()+":"+l.getLineNumber()+"info:normal disconnect due to timeout"  );
                     }else{
                         Log.e(TAG, ">>>>this is a guest vm...");
                         out.println("cd /data/guest;./con1-switch.sh");
