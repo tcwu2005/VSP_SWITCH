@@ -1,6 +1,8 @@
 package vmi.itri.aswitch;
 
 import android.content.Context;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -45,6 +47,8 @@ import static java.lang.Thread.sleep;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
     static String TAG="SWITCH";
+    static String VERSION="v0.9" ;
+
     TextView text;
     int count = 0;
     String cmd=null;
@@ -66,6 +70,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         Button btn1 = (Button) findViewById(R.id.button1);
         Button btn2 = (Button) findViewById(R.id.button2);
         Button btn3 = (Button) findViewById(R.id.button3);
+        btn1.setOnClickListener(this);
         btn2.setOnClickListener(this);
         btn3.setOnClickListener(this);
 
@@ -73,7 +78,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         /*        TextView        */
         text = (TextView)findViewById(R.id.textView);
         text.setMovementMethod(new ScrollingMovementMethod());
-        text.setText("工程版\n");
+        text.setText("工程版" +VERSION+"\n");
 
 
         /*        Telnet Client         */
@@ -102,6 +107,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }else {
             isHost=false;
             text.append("app in container");
+            btn1.setAlpha(.5f);
+            btn3.setAlpha(.5f);
+            btn1.setClickable(false);
+            btn3.setClickable(false);
         }
 
         /*  If its host , check if Guest is on */
@@ -111,12 +120,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             isGuestOn = false;
         }
 
+        //Todo: REmove this next time
         /*    Button click-handler      */
-        btn1.setOnClickListener(new OnClickListener() {
+/*        btn1.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
             /* telnet thread */
-            Runnable mutiThread = new Runnable() {
+/*            Runnable mutiThread = new Runnable() {
                 InputStream in;
                 PrintStream out;
                 int ch;
@@ -143,7 +153,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             thread.start();
                 isGuestOn=true;
             }
-        });
+        });*/
     }
 
 
@@ -158,6 +168,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         switch (v.getId()) {
             case R.id.button1:
                 Log.e(TAG,"button1");
+                VM_START();
                 break;
 
             case R.id.button2:
@@ -416,5 +427,47 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         Log.e(TAG,Thread.currentThread().getStackTrace()[2].getMethodName());
 
         new Thread(r).start();
+    }
+    void VM_START(){
+        Runnable mutiThread = new Runnable() {          /* telnet thread */
+            InputStream in;
+            PrintStream out;
+            StringBuffer cb;
+            int ch;
+            String str;
+            StackTraceElement l = new Exception().getStackTrace()[0];
+            TelnetClient tc;
+            @Override
+            public void run() {
+                try {
+                    tc = new TelnetClient();
+                    Log.e(TAG,"connectiong to localhost...");
+                    tc.connect("localhost");
+                    in = tc.getInputStream();
+                    out = new PrintStream(tc.getOutputStream());
+
+                    cb=readUntilPrompt(in);
+                    doPushStringToUI(cb.toString());
+
+                    Log.e(TAG,"start vm...");
+                    out.println("cd /data/maru/con1;./vm-start.sh");
+                    out.flush();
+
+                    cb=readUntilPrompt(in);
+                    doPushStringToUI(cb.toString());
+
+                    sleep(120*1000);   //120s
+                    tc.disconnect();
+                    doPushStringToUI( l.getClassName()+"/"+l.getMethodName()+":"+l.getLineNumber()+"info:normal disconnect due to timeout"  );
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+        Log.e(TAG,"button1 clicked...");
+        //cmd="pwd\n";
+        Thread thread = new Thread(mutiThread);
+        thread.start();
+        isGuestOn=true;
     }
 }
