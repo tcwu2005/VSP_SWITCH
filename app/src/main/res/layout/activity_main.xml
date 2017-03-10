@@ -15,37 +15,41 @@
         android:layout_height="wrap_content"
         android:text="Hello World!" />-->
     <Button
+        android:id="@+id/button1"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:id="@+id/button1"
-        android:text="Start_Personal_Workspace"/>
+        android:height="100dp"
+        android:text="Start_Personal_Workspace" />
 
     <TextView
-        android:text="TextView"
-        android:layout_width="match_parent"
         android:id="@+id/textView"
+        android:layout_width="match_parent"
+        android:layout_height="350dp"
+        android:layout_alignParentBottom="true"
         android:layout_alignParentEnd="true"
         android:layout_alignParentStart="true"
-        android:layout_alignParentBottom="true"
-        android:layout_height="350dp" />
+        android:gravity="bottom"
+        android:text="TextView" />
 
     <Button
-        android:text="SWITCH_TO_ANOTHER"
+        android:id="@+id/button2"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
         android:layout_below="@+id/button1"
-        android:layout_alignParentStart="true"
         android:layout_marginTop="12dp"
-        android:id="@+id/button2" />
+        android:height="100dp"
+        android:text="SWITCH_TO_ANOTHER" />
 
     <Button
-        android:text="TERMNIATE_WORKSPACE"
+        android:id="@+id/button3"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/button2"
         android:layout_alignParentStart="true"
+        android:layout_below="@+id/button2"
         android:layout_marginTop="11dp"
-        android:id="@+id/button3" />
+        android:height="100dp"
+        android:text="TERMNIATE_WORKSPACE" />
 
     <!--<TextView
         android:layout_width="wrap_content"

@@ -47,7 +47,7 @@ import static java.lang.Thread.sleep;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
     static String TAG="SWITCH";
-    static String VERSION="v0.9" ;
+    static String VERSION="v0.91" ;
 
     TextView text;
     int count = 0;
@@ -55,10 +55,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     TelnetClient tc = null;
     boolean isHost=true;            /* isHost== true, isGuestOn=true_or_false */
     boolean isGuestOn=false;        /* isHost==false, isGuestOn dontcare */
+    boolean isPollingStatus=false;
 
     /* inter-thread exchange */
     String strExchangeMsg = "";
     private final int step1 = 1, step2 = 2, step3 = 3, finish = 4;
+
+    Button btn1, btn2, btn3;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,9 +70,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
 
         /*        buttons      */
-        Button btn1 = (Button) findViewById(R.id.button1);
-        Button btn2 = (Button) findViewById(R.id.button2);
-        Button btn3 = (Button) findViewById(R.id.button3);
+        btn1 = (Button) findViewById(R.id.button1);
+        btn2 = (Button) findViewById(R.id.button2);
+        btn3 = (Button) findViewById(R.id.button3);
         btn1.setOnClickListener(this);
         btn2.setOnClickListener(this);
         btn3.setOnClickListener(this);
@@ -107,10 +110,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }else {
             isHost=false;
             text.append("app in container");
-            btn1.setAlpha(.5f);
-            btn3.setAlpha(.5f);
-            btn1.setClickable(false);
-            btn3.setClickable(false);
+            //// TODO: 3/8/17 remove this after bottons all done
+            //btn1.setAlpha(.5f);
+            //btn3.setAlpha(.5f);
+            //btn1.setClickable(false);
+            //btn3.setClickable(false);
         }
 
         /*  If its host , check if Guest is on */
@@ -120,55 +124,65 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             isGuestOn = false;
         }
 
-        //Todo: REmove this next time
-        /*    Button click-handler      */
-/*        btn1.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-            /* telnet thread */
-/*            Runnable mutiThread = new Runnable() {
-                InputStream in;
-                PrintStream out;
-                int ch;
-                String str;
-                @Override
-                public void run() {
-                    try {
-                    Log.e(TAG,"connectiong to localhost...");
-                    tc.connect("localhost");
-                    // Get input and output stream references
-                    in = tc.getInputStream();
-                    out = new PrintStream(tc.getOutputStream());
-                        Log.e(TAG,"start vm...");
-                    out.println("cd /data/maru/con1;./vm-start.sh");
-                    out.flush();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            };
-            Log.e(TAG,"button1 clicked...");
-            //cmd="pwd\n";
-            Thread thread = new Thread(mutiThread);
-            thread.start();
-                isGuestOn=true;
-            }
-        });*/
+        while(isPollingStatus==true);
+        doSetButtons();
+
     }
 
-
+    void doSetButtons(){
+        Log.e(TAG,"doSetButtons: isHost="+isHost+",isGuestOn="+isGuestOn);
+        if(isHost&&!isGuestOn){ //Single host only
+            //2,3 off
+            btn2.setAlpha(.5f);
+            btn3.setAlpha(.5f);
+            btn2.setClickable(false);
+            btn3.setClickable(false);
+            // 1 on
+            btn1.setAlpha(1f);
+            btn1.setClickable(true);
+        }else if (isHost&&isGuestOn){   //Host + VM
+            //2,3 on
+            btn2.setAlpha(1f);
+            btn3.setAlpha(1f);
+            btn2.setClickable(true);
+            btn3.setClickable(true);
+            // 1 off
+            btn1.setAlpha(.5f);
+            btn1.setClickable(false);
+        }else{  //in VM
+            //1,3 off
+            btn1.setAlpha(.5f);
+            btn3.setAlpha(.5f);
+            btn1.setClickable(false);
+            btn3.setClickable(false);
+            //2 on
+            btn2.setAlpha(1f);
+            btn2.setClickable(true);
+        }
+    }
+    void doHaltAllButtons(){
+        btn1.setAlpha(.5f);
+        btn2.setAlpha(.5f);
+        btn3.setAlpha(.5f);
+        btn1.setClickable(false);
+        btn2.setClickable(false);
+        btn3.setClickable(false);
+        try {
+            sleep(3000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
 
     @Override
     public void onClick(View v) {
 
-        /* I might need to do some sneaky things when everytime buttons is pressed */
-        //doCheckAndSetContainerFlag();
-        /* End of sneaky */
 
         switch (v.getId()) {
             case R.id.button1:
                 Log.e(TAG,"button1");
                 VM_START();
+                isGuestOn=true;
                 break;
 
             case R.id.button2:
@@ -193,6 +207,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             default:
                 break;
         }
+
+        /* I might need to do some sneaky things when everytime buttons is pressed */
+        doCheckAndSetContainerFlag();
+        while(isPollingStatus==true);
+        doSetButtons();
+        /* End of sneaky */
+
     }
     /*  Used in both Host and VM   */
     private void VM_SWITCH_HOST_nVM(){
@@ -290,11 +311,17 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         return sb;
     }
     */
+    //// TODO: 3/8/17 Embedded Msg string from telnet thread to textview in object to avoid race condition 
     private void doPushStringToUI(String str){
         strExchangeMsg = str;
         Message msg = new Message();
         msg.what=step1;
         uiMessageHandler.sendMessage(msg);
+        try {
+            sleep(50);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
     Handler uiMessageHandler = new Handler(){
         @Override
@@ -308,7 +335,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     //tv.setText(R.string.processing_step1);
                     Log.e(TAG,"step1 ");
                     tv.append(strExchangeMsg);
-                    strExchangeMsg="";
+                    //strExchangeMsg="";        //this one block other messsages.... (but why?)
                     break;
                 case step2:
                     //tv.setText(R.string.processing_step2);
@@ -333,6 +360,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         Runnable r = new Runnable() {
             @Override
             public void run() {
+                isPollingStatus=true;
                 InputStream in;
                 PrintStream out;
                 StringBuffer cb;
@@ -344,26 +372,23 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     in = tc.getInputStream();
                     out = new PrintStream(tc.getOutputStream());
                     if(isHost) {
-                        Log.e(TAG, "ready to terminate guest...");
-
-                        sleep(50);
-
                         cb=readUntilPrompt(in);
                         doPushStringToUI(cb.toString());
 
                         out.println("cd /data/maru/con1;./vm-st.sh");
                         out.flush();
 
-                        sleep(100); //100ms
-
                         cb = readUntilPrompt(in);
                         doPushStringToUI(cb.toString());
+
                         if( cb.toString().contains("ON")){
                             isGuestOn=true;
                         }else{
                             isGuestOn=false;
                         }
+
                         doPushStringToUI("|isGuestOn="+isGuestOn+"|\n");
+
                         tc.disconnect();
                     }else{
                         String err = "doCheckAndSetContainerFlag should not called in guest";
@@ -374,8 +399,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
+                isPollingStatus=false;
             }
         };
+        isPollingStatus=true;   //need bo be at the first line!!!
         /*  print current method name */
         Log.e(TAG,Thread.currentThread().getStackTrace()[2].getMethodName());
         new Thread(r).start();
