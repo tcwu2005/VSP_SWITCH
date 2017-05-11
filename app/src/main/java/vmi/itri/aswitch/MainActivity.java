@@ -13,13 +13,18 @@ import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.widget.AbsoluteLayout;
 import android.widget.Button;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import java.io.BufferedReader;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
@@ -44,10 +49,32 @@ import static android.R.attr.defaultValue;
 import static android.R.attr.prompt;
 import static java.lang.Thread.sleep;
 
+/*****************   README   *****************//*
+THIS UI IS DEVELOPED FROM V0.91 TCWU'S DEMO
+FOR CORWORKING WITH STING'S PHONE FIRMWARE,
+HERE LISTED THINGS CHANGED
+1. /proc/container/activate is the value of
+current *foreground* android instance. Host is '0'
+ and guest container #1 is '1'
+2. To start a container one has to run /data/run/run.sh
+Check: avoid run twice ??
+3. To switch, app can modify files or call script
+TBD
+4. To terminate a container , one has to run
+/data/maru/exit.sh
+5. need to install telnetd , stop mpdecision
+7. modify flow
+  a. telnet localhost ,
+     if failed , only show 'switch' menu bar
+     if ok , show all three menu bar
+  b. dont check three-button active , it's too complicated
+
+*//**********************END*********************/
+
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
     static String TAG="SWITCH";
-    static String VERSION="v0.91" ;
+    static String VERSION="(Sting)" ;
 
     TextView text;
     int count = 0;
@@ -55,13 +82,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     TelnetClient tc = null;
     boolean isHost=true;            /* isHost== true, isGuestOn=true_or_false */
     boolean isGuestOn=false;        /* isHost==false, isGuestOn dontcare */
-    boolean isPollingStatus=false;
+    boolean v2=true;
+    //boolean isPollingStatus=false;
 
     /* inter-thread exchange */
     String strExchangeMsg = "";
     private final int step1 = 1, step2 = 2, step3 = 3, finish = 4;
 
     Button btn1, btn2, btn3;
+
+    String ProcFileName = "/proc/container/active";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,32 +131,77 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             System.err.println("Error registering option handlers: " + e.getMessage());
         }
 
-
         /*   check if it's host or in container    */
-        File f = new File("/data/maru/con1");
-        if(f.isDirectory())   {
-            isHost=true;
+        try {
+            BufferedReader mounts = new BufferedReader(new FileReader("/proc/container/active"));
+            String line;
+
+            if ((line = mounts.readLine()) != null) {
+                if ("0".equals(line))
+                    isHost=true;
+                else
+                    isHost=false;
+            }
+        }
+        catch (FileNotFoundException e) {
+            Log.d(TAG, "Cannot find /proc/container/active...");
+            isHost=false;
+        }
+        catch (Exception e) {
+            Log.d(TAG, "Ran into problems reading /proc/container/active...");
+            isHost=false;
+        }
+
+        if(isHost){
             text.append("app in host" );
         }else {
-            isHost=false;
             text.append("app in container");
-            //// TODO: 3/8/17 remove this after bottons all done
-            //btn1.setAlpha(.5f);
-            //btn3.setAlpha(.5f);
-            //btn1.setClickable(false);
-            //btn3.setClickable(false);
         }
 
         /*  If its host , check if Guest is on */
-        if(isHost) {
+/*        if(isHost) {
             doCheckAndSetContainerFlag();
         }else {
             isGuestOn = false;
+        }   */
+        isGuestOn=true;
+
+        //while(isPollingStatus==true);
+        //doSetButtons();
+        btn1.setAlpha(0);
+        btn3.setAlpha(0);
+        btn1.setClickable(false);
+        btn3.setClickable(false);
+
+        if( isHost){
+            RelativeLayout.LayoutParams layoutParams=
+                    new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
+            layoutParams.addRule(RelativeLayout.CENTER_IN_PARENT);
+            btn2.setLayoutParams(layoutParams);
+            btn2.setText("SWITCH_TO_CONTAINER");
+        }else{
+            RelativeLayout.LayoutParams layoutParams=
+                    new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
+            layoutParams.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
+            btn2.setLayoutParams(layoutParams);
+            btn2.setText("SWITCH_TO_HOST");
         }
 
-        while(isPollingStatus==true);
-        doSetButtons();
+        /****** testtesttest *****/
+/*        btn1.setAlpha(0);
+        btn2.setAlpha(0);
+        btn3.setAlpha(0);
+        btn1.setClickable(false);
+        btn2.setClickable(false);
+        btn3.setClickable(false);
+        VM_SWITCH_HOST_nVM();
+        try {
+            sleep(2000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
+        finishAndRemoveTask (); */
     }
 
     void doSetButtons(){
@@ -176,19 +251,40 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     @Override
     public void onClick(View v) {
-
-
         switch (v.getId()) {
             case R.id.button1:
                 Log.e(TAG,"button1");
-                VM_START();
                 isGuestOn=true;
                 break;
 
             case R.id.button2:
                 Log.e(TAG,"button2");
+                text.append("button2\n");
+
+                if(isHost) {
+                    String wait = "wait";
+                    String RUN = "/data/maru/RUN";
+                    if (!new File(RUN).isFile()) {
+                        btn2.setText(wait);
+                        break;
+                    }
+                }
+
+                btn2.setText("SWITCH_TO_CONTAINER");
+
                 if (isGuestOn || !isHost) {
-                    VM_SWITCH_HOST_nVM();
+
+                    try {
+                        sleep(500);
+
+                        VM_SWITCH_HOST_nVM();
+
+                        sleep(500);
+
+                        finishAndRemoveTask();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
                 }else{
                     text.append("N/A\n");
                 }
@@ -209,60 +305,34 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
 
         /* I might need to do some sneaky things when everytime buttons is pressed */
-        doCheckAndSetContainerFlag();
-        while(isPollingStatus==true);
-        doSetButtons();
+        //doCheckAndSetContainerFlag();
+        //while(isPollingStatus==true);
+        //doSetButtons();
         /* End of sneaky */
 
     }
     /*  Used in both Host and VM   */
     private void VM_SWITCH_HOST_nVM(){
-        Runnable r = new Runnable() {
-            @Override
-            public void run() {
-                InputStream in;
-                PrintStream out;
-                StringBuffer cb;
-                StackTraceElement l = new Exception().getStackTrace()[0];
-                TelnetClient tc = new TelnetClient();
-                try {
-                    Log.e(TAG,"connectiong to localhost...");
-                    tc.connect("localhost");
-                    // Get input and output stream references
-                    in = tc.getInputStream();
-                    out = new PrintStream(tc.getOutputStream());
-                    if(isHost) {
-                        Log.e(TAG, "do vm switch...");
-
-                        //modify here
-                        cb=readUntilPrompt(in);
-                        doPushStringToUI(cb.toString());
-
-                        out.println("/data/maru/host-switch.sh");
-                        out.flush();
-
-                        cb=readUntilPrompt(in);
-                        doPushStringToUI(cb.toString());
-
-                        sleep(120*1000);   //120s
-                        tc.disconnect();
-                        doPushStringToUI( l.getClassName()+"/"+l.getMethodName()+":"+l.getLineNumber()+"info:normal disconnect due to timeout"  );
-                    }else{
-                        Log.e(TAG, ">>>>this is a guest vm...");
-                        out.println("cd /data/guest;./con1-switch.sh");
-                        out.flush();
-                        sleep(9000);
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+        try {
+            File f= new File(ProcFileName);
+            FileWriter fw = new FileWriter(f);
+            //FileReader fr = new FileReader(f);
+            if(isHost) {
+                fw.write("1");
+                fw.close();
+            }else{
+                fw.write("0");
+                fw.close();
             }
-        };
-
-        /*  print current method name */
-        Log.e(TAG,Thread.currentThread().getStackTrace()[2].getMethodName());
-
-        new Thread(r).start();
+        }
+        catch (FileNotFoundException e) {
+            Log.d(TAG, "Cannot find /proc/container/active...");
+            isHost=false;
+        }
+        catch (Exception e) {
+            Log.d(TAG, "Ran into problems reading /proc/container/active...");
+            isHost=false;
+        }
     }
     private StringBuffer readUntilPrompt(InputStream in){
         int ch;
@@ -356,7 +426,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     };
 
-    private void doCheckAndSetContainerFlag(){
+/*    private void doCheckAndSetContainerFlag(){
         Runnable r = new Runnable() {
             @Override
             public void run() {
@@ -404,9 +474,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         };
         isPollingStatus=true;   //need bo be at the first line!!!
         /*  print current method name */
-        Log.e(TAG,Thread.currentThread().getStackTrace()[2].getMethodName());
+/*        Log.e(TAG,Thread.currentThread().getStackTrace()[2].getMethodName());
         new Thread(r).start();
-    }
+    }   */
     private void doTerminateGuest(){
         Runnable r = new Runnable() {
             @Override
